@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>英文麻將</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@900&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script src="gameState.js" defer></script>
+  <script src="deck.js" defer></script>
+  <script src="wordBank.js" defer></script>
+  <script src="meanings.js" defer></script>
+  <script src="voice.js" defer></script>
+  <script src="effects.js" defer></script>
+  <script src="social.js" defer></script>
+  <script src="game.js" defer></script>
+  <script src="match.js" defer></script>
+  <script src="wheel.js" defer></script>
+  <script src="wordSystem.js" defer></script>
+  <script src="net.js" defer></script>
+  <script src="main.js" defer></script>
+</head>
+<body>
+
+  <!-- ══ 開始畫面 ══ -->
+  <div id="start-screen" class="start-screen">
+    <div class="start-card" id="start-card">
+      <div class="start-title">🀄 英文麻將</div>
+      <div class="start-subtitle">English Mahjong</div>
+
+      <!-- 模式選擇 -->
+      <div class="start-section-label">選擇模式</div>
+      <div class="mode-buttons">
+        <button class="mode-btn active" id="mode-ai" onclick="selectMode('ai')">🤖 對戰 AI</button>
+        <button class="mode-btn" id="mode-pvp" onclick="selectMode('pvp')">👥 雙人對戰</button>
+        <button class="mode-btn" id="mode-four" onclick="selectMode('four')">🀄 4 人模式</button>
+      </div>
+      <button class="mode-btn online-mode-btn" id="mode-online" onclick="selectMode('online')">🌐 線上對戰（邀朋友一起玩）</button>
+
+      <!-- 線上對戰：暱稱、人數、輸入房號 -->
+      <div id="online-section" class="online-section" hidden>
+        <div id="join-banner" class="join-banner" hidden></div>
+        <div class="start-section-label">你的暱稱</div>
+        <input id="nick-input" class="nick-input" maxlength="8" placeholder="最多 8 個字" autocomplete="nickname">
+        <div id="online-size-section">
+          <div class="start-section-label">房間人數</div>
+          <div class="diff-buttons">
+            <button class="diff-btn active" id="size-2" onclick="selectOnlineSize(2)">2 人</button>
+            <button class="diff-btn" id="size-4" onclick="selectOnlineSize(4)">4 人</button>
+          </div>
+        </div>
+        <div id="join-code-row" class="join-code-row">
+          <input id="code-input" class="code-input" maxlength="5" placeholder="有房號？輸入加入" autocomplete="off">
+          <button class="join-btn" onclick="joinByInput()">加入</button>
+        </div>
+        <div id="online-error" class="online-error" role="alert" hidden></div>
+      </div>
+
+      <!-- AI 難度 -->
+      <div id="difficulty-section">
+        <div class="start-section-label">AI 難度</div>
+        <div class="diff-buttons">
+          <button class="diff-btn active" id="diff-easy" onclick="selectDiff('easy')">
+            😊 簡單
+          </button>
+          <button class="diff-btn" id="diff-medium" onclick="selectDiff('medium')">
+            🤔 普通
+          </button>
+          <button class="diff-btn" id="diff-hard" onclick="selectDiff('hard')">
+            😈 困難
+          </button>
+        </div>
+      </div>
+
+      <!-- 局數與思考時間 -->
+      <div id="match-settings">
+      <div class="start-section-label">局數</div>
+      <div class="diff-buttons">
+        <button class="diff-btn" id="rounds-1" onclick="selectRounds(1)">1/4 輪</button>
+        <button class="diff-btn" id="rounds-2" onclick="selectRounds(2)">1/2 輪</button>
+        <button class="diff-btn active" id="rounds-4" onclick="selectRounds(4)">1 輪</button>
+        <button class="diff-btn" id="rounds-16" onclick="selectRounds(16)">1 將</button>
+      </div>
+      <div class="start-section-label">思考時間</div>
+      <div class="diff-buttons">
+        <button class="diff-btn" id="time-15" onclick="selectTurnTime(15)">15 秒</button>
+        <button class="diff-btn active" id="time-30" onclick="selectTurnTime(30)">30 秒</button>
+        <button class="diff-btn" id="time-45" onclick="selectTurnTime(45)">45 秒</button>
+        <button class="diff-btn" id="time-0" onclick="selectTurnTime(0)">不限時</button>
+      </div>
+      </div>
+
+      <button class="start-btn" id="startGameBtn" onclick="startGame()" disabled>
+        讀取單字庫中...
+      </button>
+    </div>
+
+    <div class="start-card lobby-card" id="lobby-card" hidden>
+      <div class="start-title lobby-title">房間 <span id="lobby-code" class="lobby-code"></span></div>
+      <div id="lobby-sub" class="start-subtitle lobby-sub"></div>
+      <div class="start-section-label">邀請連結（傳給朋友，打開就能加入）</div>
+      <div class="invite-box">
+        <input id="invite-link" class="invite-link" readonly onclick="this.select()">
+        <button id="lobby-copy-btn" class="invite-btn" onclick="netCopyLink()">複製連結</button>
+        <button id="lobby-share-btn" class="invite-btn" onclick="netShareLink()" hidden>分享</button>
+      </div>
+      <div class="start-section-label">玩家</div>
+      <ul id="lobby-players" class="lobby-players"></ul>
+      <div id="lobby-status" class="lobby-status" role="status"></div>
+      <div id="lobby-host-only" class="lobby-note">全部都是真人，人到齊才能開始；遊戲由你的瀏覽器主持，開始後請不要關掉這個分頁</div>
+      <button class="start-btn" id="lobby-start" onclick="netHostStart()" disabled>等待玩家加入…</button>
+      <button class="lobby-leave" onclick="netLeave()">離開房間</button>
+    </div>
+  </div>
+
+  <!-- ══ 遊戲畫面 ══ -->
+  <div id="game-screen" class="table two-seat" style="display:none">
+
+    <!-- 局數 -->
+    <div id="match-bar" class="match-bar"></div>
+
+    <!-- 其他玩家座位 -->
+    <div class="seat seat-top" id="seat-top"></div>
+    <div class="seat seat-left" id="seat-left"></div>
+    <div class="seat seat-right" id="seat-right"></div>
+
+    <!-- 中央 -->
+    <div class="center-area">
+      <div class="center-panel discard-panel">
+        <div class="panel-head">
+          <span class="panel-label">棄牌區</span>
+          <span class="deck-count">🀆 牌堆 <span id="deck-count">0</span></span>
+        </div>
+        <div id="last-discard" class="last-discard" hidden>
+          <div id="ld-tile" class="ld-tile"></div>
+          <div class="ld-text">
+            <span id="ld-who" class="ld-who"></span>
+            <span id="ld-action" class="ld-action"></span>
+          </div>
+        </div>
+        <div id="discardedLetters" class="discard-pile"></div>
+      </div>
+      <div id="wordZone" class="center-panel word-zone drop-zone">
+        <div class="panel-label">🟡 拼字區（拖曳至此）</div>
+        <div id="wordArea" class="word-area"></div>
+        <!-- 單字卡：拼出單字時顯示字義 -->
+        <div id="word-card" class="word-card-pop" hidden onclick="hideWordCard()">
+          <div id="wc-who" class="wc-who"></div>
+          <div id="wc-word" class="wc-word"></div>
+          <div id="wc-meaning" class="wc-meaning"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下方：提示列 + 畫面玩家 -->
+    <div class="table-bottom">
+      <div id="root-hint-bar" class="root-hint-bar"></div>
+      <div id="message" class="message-bar">讀取中...</div>
+
+      <!-- 思考時間倒數 -->
+      <div id="turn-timer" class="turn-timer" hidden>
+        <div class="tt-track"><div id="tt-bar" class="tt-bar"></div></div>
+        <span class="tt-sec"><span id="tt-sec">30</span> 秒</span>
+      </div>
+
+      <!-- 碰槓吃選單 -->
+      <div id="claim-bar" class="chi-bar">
+        <span class="chi-label" id="claim-label">對手丟了</span>
+        <div id="claim-tile" class="card chi-tile-preview"></div>
+        <button id="chiBtn" class="act-btn" onclick="startChi()">吃</button>
+        <button id="pungBtn" class="act-btn" onclick="claimPung()">碰</button>
+        <button id="kongClaimBtn" class="act-btn" onclick="claimKong()">槓</button>
+        <button id="skipChiBtn" class="act-btn act-skip" onclick="skipClaim()">過</button>
+      </div>
+
+      <div class="player-area" id="player-area">
+        <div id="player-melds" class="melds player-melds"></div>
+        <div id="player-hand" class="player-hand"></div>
+        <div class="player-bottom-bar">
+          <div id="player-info"></div>
+          <span class="word-list" id="player-word-list"></span>
+          <div class="controls">
+            <button id="discardBtn">丟牌</button>
+            <button id="submitWord">確認拼字</button>
+            <button id="clearWord">清空拼字</button>
+            <button id="selfPungBtn" class="act-btn act-small" style="display:none">碰</button>
+            <button id="selfKongBtn" class="act-btn act-small" style="display:none">槓</button>
+            <button id="confirmChiBtn" style="display:none" onclick="confirmChi()">確認吃牌</button>
+            <button id="cancelChiBtn" style="display:none" onclick="cancelChi()">取消吃牌</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 結果遮罩 -->
+    <div id="result-overlay" class="result-overlay">
+      <div class="result-card">
+        <div id="result-title" class="result-title"></div>
+        <div id="result-subtitle" class="result-subtitle"></div>
+        <div class="result-table-wrap">
+          <table class="result-table">
+            <thead><tr><th>玩家</th><th>剩牌</th><th>本局</th><th>總分</th></tr></thead>
+            <tbody id="result-rows"></tbody>
+          </table>
+        </div>
+        <div id="result-next" class="result-next"></div>
+        <div class="result-btns" id="result-btns"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══ 懲罰轉盤 ══ -->
+  <!-- 線上對戰：斷線提示 -->
+  <div id="net-alert" class="menu-overlay net-alert">
+    <div class="menu-panel">
+      <div class="menu-title">連線中斷</div>
+      <div id="net-alert-text" class="net-alert-text"></div>
+      <button class="menu-item menu-primary" onclick="netAlertOk()">回主選單</button>
+    </div>
+  </div>
+
+  <div id="wheel-overlay" class="wheel-overlay">
+    <div class="wheel-panel" role="dialog" aria-label="懲罰轉盤">
+      <div class="wheel-title">🎡 懲罰轉盤</div>
+      <div id="wheel-who" class="wheel-who"></div>
+      <div id="wheel-note" class="wheel-note" hidden></div>
+
+      <div class="wheel-stage">
+        <div class="wheel-wrap">
+          <div id="wheel-pointer" class="wheel-pointer"></div>
+          <canvas id="wheel-canvas" class="wheel-canvas" width="600" height="600"></canvas>
+        </div>
+        <div class="lever">
+          <div class="power-meter"><div id="power-fill" class="power-fill"></div></div>
+          <div id="lever-track" class="lever-track" tabindex="0" role="slider" aria-label="拉桿（按 ↓ 加力道，Enter 放開）">
+            <div id="lever-stick" class="lever-stick"></div>
+            <div id="lever-knob" class="lever-knob"></div>
+          </div>
+          <div id="power-label" class="power-label">力道</div>
+        </div>
+      </div>
+
+      <div id="wheel-hint" class="wheel-hint"></div>
+      <div id="wheel-result" class="wheel-result" hidden>
+        <div id="wr-target" class="wr-target"></div>
+        <div id="wr-penalty" class="wr-penalty"></div>
+        <div id="wr-note" class="wr-note"></div>
+      </div>
+      <div class="result-btns">
+        <button id="wheel-done" onclick="closeWheel()" hidden>完成</button>
+        <button id="wheel-skip" onclick="closeWheel()">跳過懲罰</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 選單 ══ -->
+  <button id="menuBtn" class="menu-btn" onclick="openMenu()" aria-label="開啟選單" hidden>☰</button>
+  <div id="menu-overlay" class="menu-overlay" onclick="if (event.target === this) closeMenu()">
+    <div class="menu-panel" role="dialog" aria-label="選單">
+      <div class="menu-head">
+        <span class="menu-title">選單</span>
+        <span class="menu-paused" id="menu-paused">遊戲暫停中</span>
+      </div>
+      <button class="menu-item menu-primary" onclick="closeMenu()">▶ 繼續遊戲</button>
+      <button class="menu-item" id="menu-restart" onclick="menuRestart()">↻ 重新開始整場</button>
+      <button class="menu-item" onclick="menuHome()">⌂ 回主選單</button>
+
+      <div class="menu-volume">
+        <button id="muteBtn" class="mute-btn" onclick="toggleMute()" aria-label="靜音">🔊</button>
+        <input id="volumeSlider" type="range" min="0" max="100" step="5" aria-label="音量">
+        <span id="volumeValue" class="volume-value">80</span>
+      </div>
+
+      <details class="menu-rules">
+        <summary>遊戲規則</summary>
+        <ul>
+          <li>每人 13 張，輪流摸 1 張後拼字或丟牌；手牌全部拼成單字用完才胡牌，丟掉最後一張不算胡</li>
+          <li>手牌自動依 A→Z 排好；剛摸的牌先放最右邊，回合結束後才排進去</li>
+          <li>碰：手上 3 張相同字母可以自己碰（放進拼字區按確認，或按「碰」）；有 2 張相同字母也可以碰別人丟的第 3 張</li>
+          <li>槓：手上 4 張相同字母可以自己槓（放進拼字區按確認，或按「槓」）；有 3 張相同也可以槓別人丟的第 4 張；槓完補摸 1 張</li>
+          <li>吃、碰、槓別人的牌之後先摸 1 張，再拼字或丟牌；丟 1 張後換下家</li>
+          <li>吃：只能吃上家的牌，用 1～2 張手牌和它組成單字（例：O＋G → go）</li>
+          <li>聽牌：手牌剩 3 張以下，任何人丟的牌都能吃</li>
+          <li>★ 萬用牌可代替任何字母，但不能碰槓</li>
+          <li>牌摸完是流局，不計分，莊家連莊</li>
+          <li>局數：換莊 4 次 = 1 輪（1/4 輪 = 1 次、1/2 輪 = 2 次、1 將 = 16 次）；莊家胡牌或流局就連莊，不算換莊</li>
+          <li>計分：開場 500 分；有人胡牌，其他人各付 底 30 ＋ 剩牌每張 10，跟莊家有關再加 10 ×（連莊數＋1）</li>
+          <li>思考時間到：自動丟出剛摸的牌，碰／吃後自動丟一張，碰槓吃自動跳過</li>
+          <li>AI 難度：簡單＝多益橘／棕證書、普通＝綠／藍證書、困難＝金證書</li>
+          <li>拼出單字會顯示中文字義；點玩家名字下的單字可以再看一次</li>
+          <li>懲罰轉盤（雙人對戰、4 人模式）：整場打完才有，最贏的人拉桿、最輸的人受罰，也可以跳過</li>
+          <li>只有查得到中文意思的英文單字才算有效單字</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+</body>
+</html>
