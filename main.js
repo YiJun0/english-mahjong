@@ -120,7 +120,7 @@ function startGame() {
     document.getElementById("game-screen").style.display = "grid";
     document.getElementById("menuBtn").hidden = false;
     startMatch();
-    fitToScreen();
+    fitToScreenSoon();
 }
 
 function backToStart() {
@@ -198,14 +198,18 @@ document.addEventListener("keydown", (e) => {
 // ══════════════════════════════════════════
 function fitToScreen() {
     const mobile = window.innerWidth <= 720;
-    document.body.classList.toggle("fit-mode", !mobile);
+    const inGame = document.getElementById("game-screen").style.display === "grid";
+    document.body.classList.toggle("in-game", inGame);
+    document.body.classList.toggle("fit-mode", !mobile || inGame);
     [["game-screen", 2.2], ["start-card", 1.5], ["lobby-card", 1.5]].forEach(([id, maxScale]) => {
         const el = document.getElementById(id);
         if (!el) return;
-        if (mobile || el.offsetParent === null) { el.style.transform = ""; return; }
+        // 牌桌是固定 16:9 的畫面，手機也整張縮放（橫放最好）；開始畫面在手機直接排成直的
+        if ((mobile && id !== "game-screen") || el.offsetParent === null) { el.style.transform = ""; return; }
+        const pad = id === "game-screen" ? 8 : 32;
         const s = Math.min(
-            (window.innerWidth - 32) / el.offsetWidth,
-            (window.innerHeight - 32) / el.offsetHeight,
+            (window.innerWidth - pad) / el.offsetWidth,
+            (window.innerHeight - pad) / el.offsetHeight,
             maxScale
         );
         el.style.transform = `scale(${s})`;
@@ -213,6 +217,13 @@ function fitToScreen() {
 }
 
 window.addEventListener("resize", fitToScreen);
+window.addEventListener("orientationchange", () => setTimeout(fitToScreen, 200));
+// 手機上第一次排版時，還沒縮小的大牌桌會把畫面撐寬，所以縮完再算一次
+function fitToScreenSoon() {
+    fitToScreen();
+    requestAnimationFrame(fitToScreen);
+    setTimeout(fitToScreen, 300);
+}
 if (window.ResizeObserver) {
     // 牌桌內容變多變高時（例如亮出的牌），重新計算縮放
     const ro = new ResizeObserver(() => fitToScreen());
@@ -260,6 +271,7 @@ function renderAll() {
 function renderDeckCount() {
     const el = document.getElementById("deck-count");
     if (el) el.innerText = allLetters.length;
+    renderCompass();
 }
 
 function renderMelds(container, seat, hideConcealed) {
@@ -364,6 +376,8 @@ function renderLastDiscard() {
     if (!recentDiscard) { box.hidden = true; return; }
     box.hidden = false;
     const from = seats[recentDiscard.from];
+    const pos = from.id === viewSeat ? "bottom" : seatPosition(from.id);
+    box.className = box.className.replace(/\bld-(top|left|right|bottom)\b/g, "").trim() + " ld-" + pos;
     const tile = document.getElementById("ld-tile");
     tile.innerText = recentDiscard.letter.toUpperCase();
     tile.classList.toggle("wildcard", recentDiscard.letter === "*");
@@ -400,7 +414,7 @@ function renderSeats() {
         box.classList.toggle("active-turn", seat.id === currentSeat);
 
         const wrap = document.createElement("div");
-        wrap.className = "seat-panel" + (seat.id === currentSeat ? " active-turn" : "");
+        wrap.className = "seat-panel pos-" + pos + (seat.id === currentSeat ? " active-turn" : "");
         wrap.appendChild(makeInfoPanel(seat));
 
         // 剛丟牌的人旁邊跳出「丟 E」
@@ -411,24 +425,29 @@ function renderSeats() {
             wrap.appendChild(bubble);
         }
 
+        // 頭像右邊（上家／下家是下面）：牌牆、亮出的牌、拼出的單字
+        const body = document.createElement("div");
+        body.className = "seat-body";
+        wrap.appendChild(body);
+
         const melds = document.createElement("div");
         melds.className = "melds";
         renderMelds(melds, seat, true);
-        wrap.appendChild(melds);
 
         const hand = document.createElement("div");
-        hand.className = "opponent-hand" + (seats.length === 4 ? " compact" : "");
+        hand.className = "opponent-hand wall wall-" + pos;
         seat.hand.forEach(() => {
             const d = document.createElement("div");
-            d.className = seats.length === 4 ? "mini-tile mini-back" : "card back";
+            d.className = "wall-tile";
             hand.appendChild(d);
         });
-        wrap.appendChild(hand);
+        body.appendChild(hand);
+        body.appendChild(melds);
 
         const words = document.createElement("div");
         words.className = "word-list";
         fillWordChips(words, seat.words, seat.name);
-        wrap.appendChild(words);
+        body.appendChild(words);
 
         box.appendChild(wrap);
     });
@@ -549,18 +568,51 @@ function renderWordZone() {
     });
 }
 
+// 各家的棄牌排在自己前面（像真的麻將桌）
 function updateDiscardPile() {
-    const pile = document.getElementById("discardedLetters");
-    pile.innerHTML = "";
+    ["top", "left", "right", "bottom"].forEach(pos => { document.getElementById("discards-" + pos).innerHTML = ""; });
+    const owners = gameState.discardOwners || [];
+    const last = gameState.discardPile.length - 1;
     gameState.discardPile.forEach((letter, i) => {
+        const owner = owners[i] !== undefined ? owners[i] : viewSeat;
+        const pos = owner === viewSeat ? "bottom" : seatPosition(owner);
         const div = document.createElement("div");
         div.className = "discard-tile";
-        const isLatest = i === gameState.discardPile.length - 1
-            && recentDiscard && !recentDiscard.claimedBy && recentDiscard.letter === letter;
+        const isLatest = i === last && recentDiscard && recentDiscard.claimedBy === null && recentDiscard.letter === letter;
         if (isLatest) div.classList.add("new", "latest");
         div.innerText = letter;
-        pile.appendChild(div);
+        document.getElementById("discards-" + pos).appendChild(div);
     });
+}
+
+// 中間的羅盤：四邊寫各家門風，輪到誰那邊亮起來；中間顯示倒數秒數（沒有倒數就顯示剩幾張）
+function renderCompass() {
+    const sides = { bottom: viewSeat };
+    seats.forEach(s => { if (s.id !== viewSeat) sides[seatPosition(s.id)] = s.id; });
+    ["top", "left", "right", "bottom"].forEach(pos => {
+        const el = document.getElementById("cp-" + pos);
+        const seat = sides[pos];
+        el.hidden = seat === undefined;
+        if (seat === undefined) return;
+        el.innerText = seatWind(seat);
+        el.classList.toggle("active", seat === currentSeat && phase !== "over");
+    });
+    updateCompassNumber();
+}
+
+function updateCompassNumber() {
+    const num = document.getElementById("cp-num"), label = document.getElementById("cp-label");
+    if (!num) return;
+    const timerShown = !document.getElementById("turn-timer").hidden;
+    if (timerShown) {
+        num.innerText = String(Math.max(0, Math.ceil(turnTimer.remaining / 1000))).padStart(2, "0");
+        label.innerText = "秒";
+        num.classList.toggle("urgent", turnTimer.remaining <= 3000);
+    } else {
+        num.innerText = allLetters.length;
+        label.innerText = "剩";
+        num.classList.remove("urgent");
+    }
 }
 
 // 拖曳到拼字區

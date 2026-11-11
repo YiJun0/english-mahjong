@@ -109,6 +109,7 @@ function stopTurnTimer() {
     turnTimer.kind = null;
     const el = document.getElementById("turn-timer");
     if (el) el.hidden = true;
+    if (typeof updateCompassNumber === "function" && seats.length && match) updateCompassNumber();
 }
 
 function tickTimer() {
@@ -139,6 +140,7 @@ function renderTimer() {
     document.getElementById("tt-bar").style.width = pct + "%";
     document.getElementById("tt-sec").innerText = sec;
     document.getElementById("turn-timer").classList.toggle("urgent", sec <= 3);
+    if (typeof updateCompassNumber === "function") updateCompassNumber();
 }
 
 // ── 線上對戰：房主幫其他真人計時（他們的裝置只負責顯示倒數）──

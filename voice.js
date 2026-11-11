@@ -11,27 +11,27 @@
 
 // 動作語音：好幾種說法隨機挑
 const VOICE_LINES = {
-    chi:   { style: "shout", say: ["吃！", "這張我吃了！", "吃啦～謝謝！"] },
-    pung:  { style: "shout", say: ["碰！", "碰啦！", "欸，這張我碰了！"] },
-    kong:  { style: "shout", say: ["槓！", "槓上去啦！", "嘿嘿，槓！"] },
-    ckong: { style: "shout", say: ["暗槓！", "偷偷暗槓～"] },
-    akong: { style: "shout", say: ["加槓！", "再加一槓！"] },
-    tsumo: { style: "big",   say: ["自摸！", "自摸啦！哈哈哈！", "不好意思，自摸～"] },
-    ron:   { style: "big",   say: ["胡啦！", "謝謝放槍～胡啦！", "就等你這張！胡！"] },
+    chi:   { style: "shout", say: ["吃！"] },
+    pung:  { style: "shout", say: ["碰！"] },
+    kong:  { style: "shout", say: ["槓！"] },
+    ckong: { style: "shout", say: ["槓！"] },
+    akong: { style: "shout", say: ["槓！"] },
+    tsumo: { style: "big",   say: ["自摸！"] },
+    ron:   { style: "big",   say: ["胡！"] },
 };
 
-// 聊天句：畫面上顯示原句，唸的時候加語氣詞、笑聲，再配一個搞笑音效
+// 快捷語：唸畫面上的那句，語氣照句子調（問句上揚、「唉…」拉長、嗆聲句加重）
 const TAUNT_SPEECH = [
-    { say: "欸～你要想多久啊？再等下去，都要過年了啦！哈哈哈！", sfx: "slideWhistle" },
-    { say: "謝謝餵牌喔～這張，我等好久了耶！嘿嘿！",            sfx: "kaching" },
-    { say: "蛤？單字量就這樣喔？回家背單字啦！",                sfx: "sadTrombone" },
-    { say: "拜託～快一點好不好？我花都謝了啦！",                sfx: "clock" },
-    { say: "不好意思喔～這局，我要胡囉！嘿嘿嘿！",              sfx: "drumroll" },
+    { say: "你是在等過年嗎？",                 rate: 1.05, pitch: 1.3 },
+    { say: "你可以，打得再爛一點！",            rate: 1.0,  pitch: 1.2 },
+    { say: "唉～，一手爛牌。",                  rate: 0.85, pitch: 0.95 },
+    { say: "不怕神一樣的對手，就怕豬一樣的隊友！", rate: 1.1,  pitch: 1.15 },
+    { say: "省省吧，你們是贏不了我的！",         rate: 1.0,  pitch: 1.25 },
 ];
 
 // 語氣設定：rate 語速、pitch 音高（1 = 正常）
 const VOICE_STYLE = {
-    shout: { rate: 1.3,  pitch: 1.35 },
+    shout: { rate: 1.15, pitch: 1.2 },
     big:   { rate: 1.08, pitch: 1.45 },
     taunt: { rate: 1.1,  pitch: 1.25 },
 };
@@ -69,7 +69,7 @@ function pickVoice() {
 
 // 讀取錄音檔（有就用，沒有就算了）
 function voiceKeys() {
-    return [...Object.keys(VOICE_LINES), ...TAUNT_SPEECH.map((_, i) => "taunt" + (i + 1))];
+    return ["chi", "pung", "kong", "tsumo", "ron", ...TAUNT_SPEECH.map((_, i) => "taunt" + (i + 1))];
 }
 function preloadVoiceFiles() {
     if (location.protocol === "file:") return;
@@ -96,7 +96,7 @@ function speakSegments(text, base) {
         if (bestVoice) u.voice = bestVoice;
         let rate = base.rate, pitch = base.pitch;
         const laugh = /^(哈|嘿|呵)+[！!～~]?$/.test(part);
-        const drawl = /^(欸|蛤|拜託|唉唷|不好意思喔)[～~？?]?$/.test(part) || (i === 0 && /[～~]$/.test(part) && part.length <= 4);
+        const drawl = /^(欸|蛤|拜託|唉唷|唉|不好意思喔)[～~？?，,]?$/.test(part) || (i === 0 && /[～~]$/.test(part) && part.length <= 4);
         if (laugh)      { rate *= 1.35; pitch *= 1.3; }
         else if (drawl) { rate *= 0.75; pitch *= 1.25; }
         else if (/[？?]$/.test(part)) { pitch *= 1.18; }
@@ -125,14 +125,13 @@ function fxVoice(key) {
     if (masterVolume <= 0) return;
     const tm = /^taunt(\d)$/.exec(key);
     const taunt = tm ? TAUNT_SPEECH[+tm[1] - 1] : null;
-    if (taunt) setTimeout(() => playSound(taunt.sfx), 0);
     if (playVoiceFile(key)) return;
+    if ((key === "ckong" || key === "akong") && playVoiceFile("kong")) return;   // 暗槓、加槓共用「槓」的錄音
     try {
         if (!window.speechSynthesis) return;
         speechSynthesis.cancel();
         if (taunt) {
-            // 音效先響一下再開口，比較有喜劇節奏
-            setTimeout(() => speakSegments(taunt.say, VOICE_STYLE.taunt), 350);
+            speakSegments(taunt.say, { rate: taunt.rate, pitch: taunt.pitch });
             return;
         }
         const line = VOICE_LINES[key];

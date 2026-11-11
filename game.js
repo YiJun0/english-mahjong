@@ -270,9 +270,11 @@ function dealHand() {
 
     gameState.wordZone = [];
     gameState.discardPile = [];
+    gameState.discardOwners = [];   // 每張棄牌是誰丟的（畫面上排在那個人前面）
     gameState.selectedTile = null;
     lastDiscard = null;
     lastWinFrom = null;
+    lastWinKind = null;
     clearFx();
     recentDiscard = null;
     claimQueue = [];
@@ -370,12 +372,14 @@ function finishTurnNoDiscard(seat) {
 }
 
 // kind：tsumo 自摸（自己回合拼完）／ron 胡別人的牌（吃牌拼完）→ 只影響特效
+var lastWinKind = null;
 function checkWin(seat, kind = "tsumo") {
     const p = seats[seat];
     const zoneEmpty = seat !== viewSeat || gameState.wordZone.length === 0;
     if (p.hand.length === 0 && zoneEmpty) {
         stopTurnTimer();
         phase = "idle";
+        lastWinKind = kind;
         winFx(seat, kind);
         later(() => showResult(seat), WIN_FX_MS);
         return true;
@@ -393,6 +397,7 @@ function doDiscard(seat, tile) {
 
     p.hand.splice(idx, 1);
     gameState.discardPile.push(tile.letter);
+    gameState.discardOwners.push(seat);
     lastDiscard = { letter: tile.letter, from: seat };
     recentDiscard = { id: ++discardCounter, letter: tile.letter, from: seat, claimedBy: null, claimType: null };
     gameState.selectedTile = null;
@@ -659,6 +664,7 @@ function executeClaim(seat, type, chiTiles, chiWord) {
     chiSelectedTiles = [];
     hideClaimBar();
     gameState.discardPile.pop();   // 從棄牌區拿走
+    gameState.discardOwners.pop();
     if (recentDiscard) { recentDiscard.claimedBy = seat; recentDiscard.claimType = type; }
 
     if (type === "kong") {
@@ -954,12 +960,15 @@ function showResult(winner, exhausted = false) {
     tbody.innerHTML = "";
     rows.forEach((s, i) => {
         const tr = document.createElement("tr");
+        const isLoser = w && lastWinKind === "ron" && s.id === lastWinFrom && s.id !== w.id;
         if (w && s.id === w.id) tr.className = "winner-row";
+        else if (isLoser) tr.className = "loser-row";
         const pay = result.payments.find(p => p.seat === s.id);
         const detail = pay ? `底 ${SCORE_BASE}＋剩 ${pay.tiles} 張 ${pay.tiles * SCORE_PER_TILE}` + (pay.dealerExtra ? `＋莊 ${pay.dealerExtra}` : "") : "";
         const delta = result.deltas[s.id];
         tr.innerHTML =
-            `<td class="rt-name">${match.over ? `<span class="rank">${i + 1}</span>` : ""}${s.name}` +
+            `<td class="rt-name">${w && s.id === w.id ? `<span class="rt-stamp win">${lastWinKind === "tsumo" ? "自摸" : "勝"}</span>` : isLoser ? `<span class="rt-stamp lose">放槍</span>` : ""}` +
+            `${match.over ? `<span class="rank">${i + 1}</span>` : ""}${s.name}` +
             `<div class="rt-words">${s.words.map(w => {
                 const m = getMeaning(w).split("；")[0];
                 return m ? `${w} ${m}` : w;

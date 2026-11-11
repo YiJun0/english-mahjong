@@ -385,6 +385,7 @@ function netSendState(seat) {
         lastDiscard,
         recentDiscard,
         discardPile: gameState.discardPile,
+        discardOwners: gameState.discardOwners,
         deck: allLetters.length,
         drawnTileId: currentSeat === seat ? drawnTileId : null,
         claim: activeClaim && activeClaim.seat === seat && phase === "claim" ? activeClaim : null,
@@ -560,6 +561,7 @@ function netOnHostMessage(msg) {
             document.getElementById("start-screen").style.display = "none";
             document.getElementById("game-screen").style.display = "grid";
             document.getElementById("menuBtn").hidden = false;
+            fitToScreenSoon();
             break;
         case "state":
             netApplyState(msg);
@@ -626,6 +628,7 @@ function netApplyState(s) {
     lastDiscard = s.lastDiscard;
     recentDiscard = s.recentDiscard;
     gameState.discardPile = s.discardPile;
+    gameState.discardOwners = s.discardOwners || [];
     allLetters = { length: s.deck };
     drawnTileId = s.drawnTileId;
 
@@ -695,7 +698,7 @@ function netRunClientTimer(t) {
     clearInterval(netClientTimer);
     netClientTimer = null;
     const el = document.getElementById("turn-timer");
-    if (!t) { el.hidden = true; return; }
+    if (!t) { el.hidden = true; updateCompassNumber(); return; }
     const deadline = performance.now() + t.remaining;
     let lastBeep = null;
     const draw = () => {

@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>英文麻將</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -126,35 +126,43 @@
     <div class="seat seat-left" id="seat-left"></div>
     <div class="seat seat-right" id="seat-right"></div>
 
-    <!-- 中央 -->
-    <div class="center-area">
-      <div class="center-panel discard-panel">
-        <div class="panel-head">
-          <span class="panel-label">棄牌區</span>
-          <span class="deck-count">🀆 牌堆 <span id="deck-count">0</span></span>
+    <!-- 中央：各家棄牌在自己前面、中間是羅盤（倒數／剩幾張＋東南西北） -->
+    <div class="center-area" id="center-area">
+      <div id="discards-top" class="discard-row dr-top"></div>
+      <div id="discards-left" class="discard-row dr-left"></div>
+      <div id="discards-right" class="discard-row dr-right"></div>
+      <div id="discards-bottom" class="discard-row dr-bottom"></div>
+
+      <div id="compass" class="compass" aria-label="輪到誰">
+        <span class="cp-wind cp-top" id="cp-top"></span>
+        <span class="cp-wind cp-left" id="cp-left"></span>
+        <span class="cp-wind cp-right" id="cp-right"></span>
+        <span class="cp-wind cp-bottom" id="cp-bottom"></span>
+        <div class="cp-center">
+          <div id="cp-num" class="cp-num">0</div>
+          <div id="cp-label" class="cp-label">剩</div>
         </div>
-        <div id="last-discard" class="last-discard" hidden>
-          <div id="ld-tile" class="ld-tile"></div>
-          <div class="ld-text">
-            <span id="ld-who" class="ld-who"></span>
-            <span id="ld-action" class="ld-action"></span>
-          </div>
-        </div>
-        <div id="discardedLetters" class="discard-pile"></div>
       </div>
-      <div id="wordZone" class="center-panel word-zone drop-zone">
-        <div class="panel-label">🟡 拼字區（拖曳至此）</div>
-        <div id="wordArea" class="word-area"></div>
-        <!-- 單字卡：拼出單字時顯示字義 -->
-        <div id="word-card" class="word-card-pop" hidden onclick="hideWordCard()">
-          <div id="wc-who" class="wc-who"></div>
-          <div id="wc-word" class="wc-word"></div>
-          <div id="wc-meaning" class="wc-meaning"></div>
+
+      <!-- 最新棄牌：圓形泡泡，出現在丟牌的人前面 -->
+      <div id="last-discard" class="last-discard" hidden>
+        <div id="ld-tile" class="ld-tile"></div>
+        <div class="ld-text">
+          <span id="ld-who" class="ld-who"></span>
+          <span id="ld-action" class="ld-action"></span>
         </div>
+      </div>
+      <div id="discardedLetters" class="discard-pile" hidden></div>
+
+      <!-- 單字卡：拼出單字時顯示字義 -->
+      <div id="word-card" class="word-card-pop" hidden onclick="hideWordCard()">
+        <div id="wc-who" class="wc-who"></div>
+        <div id="wc-word" class="wc-word"></div>
+        <div id="wc-meaning" class="wc-meaning"></div>
       </div>
     </div>
 
-    <!-- 下方：提示列 + 畫面玩家 -->
+    <!-- 下方：提示列＋拼字托盤＋手牌＋資訊列 -->
     <div class="table-bottom">
       <div id="root-hint-bar" class="root-hint-bar"></div>
       <div id="message" class="message-bar">讀取中...</div>
@@ -165,7 +173,7 @@
         <span class="tt-sec"><span id="tt-sec">30</span> 秒</span>
       </div>
 
-      <!-- 碰槓吃選單 -->
+      <!-- 碰槓吃：右邊一排圓形大字鍵 -->
       <div id="claim-bar" class="chi-bar">
         <span class="chi-label" id="claim-label">對手丟了</span>
         <div id="claim-tile" class="card chi-tile-preview"></div>
@@ -176,11 +184,19 @@
       </div>
 
       <div class="player-area" id="player-area">
-        <div id="player-melds" class="melds player-melds"></div>
-        <div id="player-hand" class="player-hand"></div>
+        <!-- 拼字托盤：點手牌放上來，按「拼字」 -->
+        <div id="wordZone" class="word-zone drop-zone">
+          <span class="panel-label">拼字區</span>
+          <div id="wordArea" class="word-area"></div>
+        </div>
+        <div class="hand-row">
+          <div id="player-melds" class="melds player-melds"></div>
+          <div id="player-hand" class="player-hand"></div>
+        </div>
         <div class="player-bottom-bar">
           <div id="player-info"></div>
           <span class="word-list" id="player-word-list"></span>
+          <span class="deck-left">剩 <b id="deck-count">0</b> 張</span>
           <div class="controls">
             <button id="discardBtn">丟牌</button>
             <button id="submitWord">確認拼字</button>
@@ -192,6 +208,17 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 右側：快捷語面板（點 💬 打開） -->
+    <button id="chat-tab" class="chat-tab" onclick="toggleChatPanel()" aria-label="快捷語">快<br>捷<br>語</button>
+    <div id="chat-panel" class="chat-panel" aria-hidden="true">
+      <div class="cp-tabs">
+        <button class="cp-tab active" id="cp-tab-quick" onclick="showChatTab('quick')">快捷語</button>
+        <button class="cp-tab" id="cp-tab-log" onclick="showChatTab('log')">聊天記錄</button>
+      </div>
+      <div id="chat-quick" class="chat-list"></div>
+      <div id="chat-log" class="chat-list chat-log" hidden></div>
     </div>
 
     <!-- 結果遮罩 -->
@@ -257,6 +284,13 @@
   </div>
 
   <!-- ══ 選單 ══ -->
+  <!-- 手機直放時提示轉橫向 -->
+  <div class="rotate-hint" id="rotate-hint">
+    <div class="rh-icon">📱</div>
+    <div>把手機轉成橫的，牌桌會更大、更好玩</div>
+    <button onclick="document.body.classList.add('rotate-dismissed')">直的也沒關係，繼續</button>
+  </div>
+
   <button id="menuBtn" class="menu-btn" onclick="openMenu()" aria-label="開啟選單" hidden>☰</button>
   <div id="menu-overlay" class="menu-overlay" onclick="if (event.target === this) closeMenu()">
     <div class="menu-panel" role="dialog" aria-label="選單">

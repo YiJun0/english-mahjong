@@ -7,8 +7,8 @@ const FX_STYLE = {
     chi:   { text: "吃",   cls: "fx-chi",   sound: "fxChi",   voice: "吃" },
     pung:  { text: "碰",   cls: "fx-pung",  sound: "fxPung",  voice: "碰" },
     kong:  { text: "槓",   cls: "fx-kong",  sound: "fxKong",  voice: "槓" },
-    ckong: { text: "暗槓", cls: "fx-kong",  sound: "fxKong",  voice: "暗槓" },
-    akong: { text: "加槓", cls: "fx-kong",  sound: "fxKong",  voice: "加槓" },
+    ckong: { text: "槓",   cls: "fx-kong",  sound: "fxKong",  voice: "槓" },
+    akong: { text: "槓",   cls: "fx-kong",  sound: "fxKong",  voice: "槓" },
 };
 
 function reducedMotion() {
@@ -37,7 +37,28 @@ function fxLayer() {
 
 // 語音在 voice.js（fxVoice）
 
-// 吃／碰／槓：大字＋光圈＋火花
+// 吃／碰／槓：牌桌中間（羅盤上）跳出一枚發光的徽章，再飛到那個人的頭像
+function compassCenter() {
+    const el = document.getElementById("compass");
+    const r = el && el.getBoundingClientRect();
+    if (!r || !r.width) return { x: innerWidth / 2, y: innerHeight / 2 };
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+function seatAvatarCenter(seat) {
+    const el = document.querySelector(`.avatar[data-seat="${seat}"]`);
+    const r = el && el.getBoundingClientRect();
+    if (r && r.width) return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    return seatAnchor(seat);
+}
+
+function makeMedal(text, cls) {
+    const m = document.createElement("div");
+    m.className = "fx-medal " + cls + (text.length > 1 ? " two" : "");
+    m.innerHTML = `<div class="medal-flame"></div><div class="medal-coin"><span>${text}</span></div>`;
+    return m;
+}
+
 function actionFx(type, seat) {
     const st = FX_STYLE[type];
     if (!st) return;
@@ -45,30 +66,41 @@ function actionFx(type, seat) {
     playSound(st.sound);
     fxVoice(type);
 
-    const { x, y } = seatAnchor(seat);
+    const from = compassCenter(), to = seatAvatarCenter(seat);
     const box = document.createElement("div");
-    box.className = `fx-action ${st.cls}`;
-    // 不要貼到畫面邊緣
-    box.style.left = Math.min(innerWidth - 110, Math.max(110, x)) + "px";
-    box.style.top = Math.min(innerHeight - 90, Math.max(90, y)) + "px";
-    box.innerHTML = `<div class="fx-rays"></div><div class="fx-ring"></div><div class="fx-word">${st.text}</div>`;
+    box.className = "fx-action " + st.cls;
+    box.style.left = from.x + "px";
+    box.style.top = from.y + "px";
+    const medal = makeMedal(st.text, "medal-" + (type === "chi" ? "green" : "gold"));
+    box.appendChild(medal);
 
     if (!reducedMotion()) {
-        const n = type === "chi" ? 10 : type === "pung" ? 14 : 22;
+        const n = type === "chi" ? 12 : type === "pung" ? 16 : 24;
         for (let i = 0; i < n; i++) {
-            const s = document.createElement("i");
-            s.className = "fx-spark";
+            const sp = document.createElement("i");
+            sp.className = "fx-spark";
             const ang = (Math.PI * 2 * i) / n + Math.random() * 0.4;
-            const dist = 70 + Math.random() * (type === "chi" ? 50 : 90);
-            s.style.setProperty("--dx", Math.cos(ang) * dist + "px");
-            s.style.setProperty("--dy", Math.sin(ang) * dist + "px");
-            s.style.animationDelay = Math.random() * 0.08 + "s";
-            box.appendChild(s);
+            const dist = 70 + Math.random() * 70;
+            sp.style.setProperty("--dx", Math.cos(ang) * dist + "px");
+            sp.style.setProperty("--dy", Math.sin(ang) * dist + "px");
+            sp.style.animationDelay = (0.1 + Math.random() * 0.1) + "s";
+            box.appendChild(sp);
         }
     }
     fxLayer().appendChild(box);
     if (type !== "chi") shakeTable(type === "pung" ? "small" : "big");
-    setTimeout(() => box.remove(), 1300);
+
+    // 跳出 → 停一下 → 飛到頭像、縮小
+    if (box.animate && !reducedMotion()) {
+        const dx = to.x - from.x, dy = to.y - from.y;
+        box.animate([
+            { transform: "translate(0,0) scale(1)", opacity: 1, offset: 0 },
+            { transform: "translate(0,0) scale(1)", opacity: 1, offset: 0.55 },
+            { transform: `translate(${dx}px, ${dy}px) scale(0.45)`, opacity: 0.9, offset: 0.9 },
+            { transform: `translate(${dx}px, ${dy}px) scale(0.3)`, opacity: 0, offset: 1 },
+        ], { duration: 1400, easing: "ease-in-out", fill: "forwards" });
+    }
+    setTimeout(() => box.remove(), 1450);
 }
 
 function shakeTable(size) {
@@ -103,43 +135,46 @@ function winFx(seat, kind) {
     const isTsumo = kind === "tsumo";
     if (netRole === "host") netBroadcast({ t: "fx", k: "win", seat, kind, from: lastWinFrom });
     playSound("thunder");
-    setTimeout(() => playSound(isTsumo ? "fxTsumo" : "fxRon"), 250);
-    setTimeout(() => fxVoice(isTsumo ? "tsumo" : "ron"), 200);
+    setTimeout(() => playSound(isTsumo ? "fxTsumo" : "fxRon"), 300);
+    setTimeout(() => fxVoice(isTsumo ? "tsumo" : "ron"), 250);
 
     const W = innerWidth, H = innerHeight;
-    const { x, y } = seatAnchor(seat);
+    const { x, y } = seatAvatarCenter(seat);
     const ov = document.createElement("div");
     ov.className = "fx-win " + (isTsumo ? "fx-tsumo" : "fx-ron");
 
-    // 閃電：自摸從天上劈到自己；胡別人的牌多一道從放槍的人那裡打過來
+    // 一道主閃電從天上直直劈到胡牌的人頭上，旁邊幾道分岔；胡別人的牌再加一道從放槍的人打過來
     let bolts = "";
-    const n = reducedMotion() ? 1 : isTsumo ? 4 : 3;
+    const main = lightningPath(x + (Math.random() - 0.5) * 80, -30, x, y - 10, 70);
+    bolts += `<path class="bolt-glow main" d="${main}"/><path class="bolt-core main" d="${main}"/>`;
+    const n = reducedMotion() ? 0 : 2;
     for (let i = 0; i < n; i++) {
-        const sx = isTsumo ? x + (Math.random() - 0.5) * W * 0.7 : Math.random() * W;
-        const d = lightningPath(sx, -20, x + (Math.random() - 0.5) * 60, y, 110);
-        const delay = (i * 0.16).toFixed(2);
-        bolts += `<path class="bolt-glow" d="${d}" style="animation-delay:${delay}s"/>
-                  <path class="bolt-core" d="${d}" style="animation-delay:${delay}s"/>`;
+        const sx = x + (i ? 1 : -1) * (80 + Math.random() * 120);
+        const d = lightningPath(sx, -30, x + (Math.random() - 0.5) * 40, y - 20, 90);
+        const delay = (0.12 + i * 0.14).toFixed(2);
+        bolts += `<path class="bolt-glow" d="${d}" style="animation-delay:${delay}s"/><path class="bolt-core" d="${d}" style="animation-delay:${delay}s"/>`;
     }
     if (!isTsumo && lastWinFrom !== null && lastWinFrom !== seat) {
-        const f = seatAnchor(lastWinFrom);
-        const d = lightningPath(f.x, f.y, x, y, 70);
-        bolts += `<path class="bolt-glow" d="${d}" style="animation-delay:.5s"/>
-                  <path class="bolt-core" d="${d}" style="animation-delay:.5s"/>`;
+        const f = seatAvatarCenter(lastWinFrom);
+        const d = lightningPath(f.x, f.y, x, y, 60);
+        bolts += `<path class="bolt-glow" d="${d}" style="animation-delay:.45s"/><path class="bolt-core" d="${d}" style="animation-delay:.45s"/>`;
     }
 
-    const name = seats[seat] ? seats[seat].name : "";
     ov.innerHTML = `
         <div class="fx-flash"></div>
         <svg class="fx-bolts" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bolts}</svg>
-        <div class="fx-win-word">
-          <div class="fx-win-main">${isTsumo ? "自摸" : "胡"}</div>
-          <div class="fx-win-who">${name}${isTsumo ? " 自摸！" : " 胡牌！"}</div>
-        </div>`;
+        <div class="fx-impact" style="left:${x}px;top:${y}px"></div>`;
+    const holder = document.createElement("div");
+    holder.className = "fx-win-medal";
+    holder.style.left = Math.min(W - 90, Math.max(90, x)) + "px";
+    holder.style.top = Math.min(H - 90, Math.max(90, y)) + "px";
+    holder.appendChild(makeMedal(isTsumo ? "自摸" : "胡", "medal-red"));
+    const name = seats[seat] ? seats[seat].name : "";
+    holder.insertAdjacentHTML("beforeend", `<div class="fx-win-who">${name}${isTsumo ? " 自摸" : " 胡牌"}</div>`);
+    ov.appendChild(holder);
     fxLayer().appendChild(ov);
     shakeTable("big");
-    setTimeout(() => shakeTable("big"), 550);
-    setTimeout(() => ov.classList.add("fx-out"), WIN_FX_MS - 350);
+    setTimeout(() => ov.classList.add("fx-out"), WIN_FX_MS - 300);
     setTimeout(() => ov.remove(), WIN_FX_MS + 100);
 }
 

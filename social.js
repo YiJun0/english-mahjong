@@ -12,11 +12,11 @@ const PROPS = {
 };
 
 const TAUNTS = [
-    "你要想多久？再等就過年了啦！",
-    "謝謝餵牌，這張我等好久了～",
-    "單字量就這樣嗎？回去背單字啦！",
-    "快一點好嗎，我花都謝了！",
-    "不好意思，這局我要胡了喔～",
+    "你是在等過年嗎？",
+    "你可以打得再爛一點",
+    "唉…一手爛牌",
+    "不怕神一樣的對手，就怕豬一樣的隊友",
+    "省省吧，你們是贏不了我的",
 ];
 
 const PROP_COOLDOWN_MS = 1500;
@@ -78,7 +78,7 @@ function openPopMenu(anchorEl, title, items, className) {
 
 document.addEventListener("pointerdown", (e) => {
     const m = document.getElementById("pop-menu");
-    if (m && !m.contains(e.target) && !e.target.closest(".avatar-target, .chat-btn")) closePopMenu();
+    if (m && !m.contains(e.target) && !e.target.closest(".avatar-target")) closePopMenu();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopMenu(); });
 
@@ -92,10 +92,60 @@ function openPropMenu(targetSeat, anchorEl) {
         })), "prop-menu");
 }
 
-function openChatMenu(anchorEl) {
-    openPopMenu(anchorEl, "快捷聊天",
-        TAUNTS.map((t, i) => ({ html: t, action: () => sendChat(viewSeat, i) })), "chat-menu");
+// 名字旁的 💬 也是打開右邊的快捷語面板
+function openChatMenu() {
+    toggleChatPanel(true);
 }
+
+// ── 右邊的快捷語面板（快捷語／聊天記錄） ──
+function renderChatQuick() {
+    const box = document.getElementById("chat-quick");
+    if (!box || box.childElementCount) return;
+    TAUNTS.forEach((t, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chat-item";
+        b.textContent = t;
+        b.onclick = () => { sendChat(viewSeat, i); toggleChatPanel(false); };
+        box.appendChild(b);
+    });
+    document.getElementById("chat-log").innerHTML = `<div class="log-empty">還沒有人說話</div>`;
+}
+
+function toggleChatPanel(force) {
+    const panel = document.getElementById("chat-panel");
+    renderChatQuick();
+    const open = force === undefined ? !panel.classList.contains("open") : force;
+    panel.classList.toggle("open", open);
+    panel.setAttribute("aria-hidden", open ? "false" : "true");
+    if (open) { const f = panel.querySelector(".chat-item"); if (f) f.focus({ preventScroll: true }); }
+}
+
+function showChatTab(tab) {
+    document.getElementById("chat-quick").hidden = tab !== "quick";
+    document.getElementById("chat-log").hidden = tab !== "log";
+    document.getElementById("cp-tab-quick").classList.toggle("active", tab === "quick");
+    document.getElementById("cp-tab-log").classList.toggle("active", tab === "log");
+}
+
+function logChat(seat, text) {
+    const log = document.getElementById("chat-log");
+    if (!log) return;
+    const empty = log.querySelector(".log-empty");
+    if (empty) empty.remove();
+    const line = document.createElement("div");
+    line.className = "log-line";
+    line.innerHTML = `<b></b>：<span></span>`;
+    line.querySelector("b").textContent = seats[seat] ? seats[seat].name : "";
+    line.querySelector("span").textContent = text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+}
+
+document.addEventListener("pointerdown", (e) => {
+    const panel = document.getElementById("chat-panel");
+    if (panel && panel.classList.contains("open") && !panel.contains(e.target) && !e.target.closest("#chat-tab, .chat-btn")) toggleChatPanel(false);
+});
 
 // ══════════════════════════════════════════
 // 粒子：給初速度＋重力，用 Web Animations 算出拋物線
@@ -177,7 +227,9 @@ function playProp(from, to, type) {
     fxLayer().appendChild(fly);
     playSound("whoosh");
 
-    const done = () => { fly.remove(); propImpact(to, type, b); };
+    let finished = false;
+    const done = () => { if (finished) return; finished = true; fly.remove(); propImpact(to, type, b); };
+    setTimeout(done, 1100);   // 分頁在背景時動畫可能暫停，保證一定會命中
     if (reducedMotion() || !fly.animate) { setTimeout(done, 150); return; }
 
     const dx = b.x - a.x, dy = b.y - a.y;
@@ -394,6 +446,7 @@ function sendChat(seat, idx) {
 function showChat(seat, idx) {
     const text = TAUNTS[idx];
     if (!seats[seat] || !text) return;
+    logChat(seat, text);
     document.querySelectorAll(`.chat-bubble[data-seat="${seat}"]`).forEach(b => b.remove());
 
     const pos = avatarCenter(seat);
